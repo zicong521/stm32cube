@@ -1,3 +1,11 @@
+/ANO_flycontrol/*
+!ANO_flycontrol/SRC/
+/init_20201119/*
+!*/inc/
+!.gitignore
+!/init_20201119/Src/
+
+
 # Prerequisites
 *.d
 
