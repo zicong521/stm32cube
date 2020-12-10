@@ -102,6 +102,7 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+	// 配置好了通用定时器PWM输出 基础定时器计时中断
 	HAL_TIM_Base_Start_IT(&htim6);// 基础定时器开始中断 
 	HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);// 通用定时器PWM输出
   while (1)
