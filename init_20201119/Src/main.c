@@ -20,7 +20,7 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-
+#include "Scheduler.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
@@ -67,11 +67,11 @@ static void MX_USART1_UART_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+// 任务调度器的初始化
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_6);
-  HAL_UART_Transmit(&huart1, test_arr, 10, 0xffff);
 }
 /* USER CODE END 0 */
 
@@ -81,12 +81,11 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   */
 int main(void)
 {
+	
+	
   /* USER CODE BEGIN 1 */
-	int i = 0;
-for( i = 0; i < 10; i++)
-{
-  test_arr[i] = i;
-}
+	// 启动任务调度器
+Scheduler_Setup();
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -122,6 +121,7 @@ for( i = 0; i < 10; i++)
 
   while (1)
   {
+    Scheduler_Run();
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
