@@ -21,6 +21,7 @@ uint32_t last_run;
 
 void Scheduler_Setup(void);
 void Scheduler_Run(void);
+void data_exam(uint8_t temp_data);
 
 #endif
 

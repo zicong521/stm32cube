@@ -1,5 +1,5 @@
 #include "Scheduler.h"
-
+#include "main.h"
 #define TICK_PER_SECOND 1000
 
 static void Loop_1000Hz(void)	//1ms执行一次
@@ -18,11 +18,38 @@ static void Loop_200Hz(void)	//5ms执行一次
 }
 
 extern UART_HandleTypeDef huart1;
-uint8_t a = 0xAA;
-uint8_t b = 0xFF;
+extern unsigned char UART1_Rx_flg;
+extern unsigned char UART1_Rx_Buf[4];
+extern unsigned int  UART1_Rx_cnt;
+void data_exam(uint8_t temp_data)
+{
+	static int state = 0;
+	if(UART1_Rx_flg)
+	{
+		HAL_UART_Transmit_IT(&huart1, &temp_data, 1);
+			if(0xAA == temp_data)
+			{
+				state = 1;
+			}
+			if(state == 1  )
+			{
+				if(temp_data == 0x01)
+				TIM2->CCR1 ++;
+				if(0x02 == temp_data)
+				{
+					TIM2->CCR1 --;
+				}
+				state = 2;
+			}
+			if(state == 2 && temp_data == 0xFF)
+			{
+				state = 0;
+			}
+      UART1_Rx_flg = 0;
+	}
+}
 static void Loop_100Hz(void)	//10ms执行一次
 {
-	
 	
 }
 
@@ -35,12 +62,12 @@ static void Loop_50Hz(void)	//20ms执行一次
 
 static void Loop_20Hz(void)	//50ms执行一次
 {	
-	HAL_UART_Transmit(&huart1,&b, 1, 0xffff);
+	
 }
 
 static void Loop_2Hz(void)	//500ms执行一次
 {
-	HAL_UART_Transmit(&huart1,&a, 1, 0xffff);
+
 }
 //系统任务配置，创建不同执行频率的“线程”
 static sched_task_t sched_tasks[] = 
