@@ -4,7 +4,11 @@
 
 static void Loop_1000Hz(void)	//1ms执行一次
 {
-
+	if(UsartType.RX_flag)    	// Receive flag
+			{  
+					UsartType.RX_flag=0;	// clean flag
+					HAL_UART_Transmit(&huart1, UsartType.RX_pData, UsartType.RX_Size, 0xFFFF);
+			} 
 }
 
 static void Loop_500Hz(void)	//2ms执行一次
@@ -23,28 +27,18 @@ extern unsigned char UART1_Rx_Buf[4];
 extern unsigned int  UART1_Rx_cnt;
 void data_exam(uint8_t temp_data)
 {
-	static int state = 0;
+	//static int state = 0;
 	if(UART1_Rx_flg)
 	{
-		HAL_UART_Transmit_IT(&huart1, &temp_data, 1);
-			if(0xAA == temp_data)
-			{
-				state = 1;
-			}
-			if(state == 1  )
-			{
+		
+			
 				if(temp_data == 0x01)
-				TIM2->CCR1 ++;
+				TIM2->CCR1 += 5;
 				if(0x02 == temp_data)
 				{
-					TIM2->CCR1 --;
+					TIM2->CCR1 -= 5;
 				}
-				state = 2;
-			}
-			if(state == 2 && temp_data == 0xFF)
-			{
-				state = 0;
-			}
+			HAL_UART_Transmit(&huart1,(uint8_t *) &temp_data, 1, 0x10);
       UART1_Rx_flg = 0;
 	}
 }

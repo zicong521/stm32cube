@@ -23,7 +23,6 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "Scheduler.h"
 
 
 /* USER CODE END Includes */
@@ -49,14 +48,9 @@ TIM_HandleTypeDef htim6;
 UART_HandleTypeDef huart1;
 DMA_HandleTypeDef hdma_usart1_rx;
 
-unsigned char UART1_Rx_Buf[4] = {0}; //USART1存储接收数据
-unsigned char UART1_Rx_flg = 0;                   //USART1接收完成标志
-unsigned int  UART1_Rx_cnt = 0;                   //USART1接受数据计数器
-unsigned char UART1_temp[1] = {0};       //USART1接收数据缓存
-
-
 /* USER CODE BEGIN PV */
-
+uint8_t UART1_Rx_Buf[1] = {0};
+uint8_t UART1_Rx_flg;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -78,27 +72,17 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_6);
 }
-uint8_t temp;
-void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
-{
-	if(huart->Instance==USART1)
-  {
-    
-    HAL_UART_Receive_IT(&huart1, UART1_Rx_Buf, 4);
-		HAL_UART_Transmit_IT(&huart1, UART1_Rx_Buf, 4);
-  }
-}
+
 /* USER CODE END 0 */
 
 /**
   * @brief  The application entry point.
   * @retval int
   */
-
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-	// 启动任务调度�?
+	// 启动任务调度
 Scheduler_Setup();
   /* USER CODE END 1 */
 
@@ -132,8 +116,10 @@ Scheduler_Setup();
   /* USER CODE BEGIN WHILE */
   HAL_TIM_Base_Start_IT(&htim6);            
   HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);
-	// 启动接收中断
-	HAL_UART_Receive_IT(&huart1, UART1_Rx_Buf, 4);
+	// 启动USART1接收中断 
+	
+	HAL_UART_Receive_DMA(&huart1, UsartType.RX_pData, RX_LEN);  
+	__HAL_UART_ENABLE_IT(&huart1, UART_IT_IDLE); 
   while (1)
   {
     Scheduler_Run();
@@ -193,9 +179,11 @@ void SystemClock_Config(void)
   */
 static void MX_TIM2_Init(void)
 {
+
   /* USER CODE BEGIN TIM2_Init 0 */
 
   /* USER CODE END TIM2_Init 0 */
+
   TIM_ClockConfigTypeDef sClockSourceConfig = {0};
   TIM_MasterConfigTypeDef sMasterConfig = {0};
   TIM_OC_InitTypeDef sConfigOC = {0};
@@ -204,9 +192,9 @@ static void MX_TIM2_Init(void)
 
   /* USER CODE END TIM2_Init 1 */
   htim2.Instance = TIM2;
-  htim2.Init.Prescaler = 1680-1;
+  htim2.Init.Prescaler = 168-1;
   htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim2.Init.Period = 1000-1;
+  htim2.Init.Period = 10000-1;
   htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
@@ -229,7 +217,7 @@ static void MX_TIM2_Init(void)
     Error_Handler();
   }
   sConfigOC.OCMode = TIM_OCMODE_PWM1;
-  sConfigOC.Pulse = 75;
+  sConfigOC.Pulse = 750;
   sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
   sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
   if (HAL_TIM_PWM_ConfigChannel(&htim2, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
