@@ -1,92 +1,70 @@
 #include "Scheduler.h"
 #include "main.h"
 #define TICK_PER_SECOND 1000
+_usart_data_st usart_data_handle;
 
-static void Loop_1000Hz(void)	//1ms执行一次
+// 操作三个舵机的代码
+double op1(unsigned char op_commond);
+double op2(unsigned char op_commond);
+double op3(unsigned char op_commond);
+// 操作函数跳转表
+double (*function_pointer[])(unsigned char) = {op1, op2, op3};
+
+static void Loop_1000Hz(void) //1ms执行一次
 {
-	if(UsartType.RX_flag)    	// Receive flag
-			{  
-					UsartType.RX_flag=0;	// clean flag
-					HAL_UART_Transmit(&huart1, UsartType.RX_pData, UsartType.RX_Size, 0xFFFF);
-			} 
-}
-
-static void Loop_500Hz(void)	//2ms执行一次
-{	
-}
-
-static void Loop_200Hz(void)	//5ms执行一次
-{
-
-	
-}
-
-extern UART_HandleTypeDef huart1;
-extern unsigned char UART1_Rx_flg;
-extern unsigned char UART1_Rx_Buf[4];
-extern unsigned int  UART1_Rx_cnt;
-void data_exam(uint8_t temp_data)
-{
-	//static int state = 0;
-	if(UART1_Rx_flg)
+	if (usart_data_handle.data_correct_flag) // Receive flag
 	{
-		
-			
-				if(temp_data == 0x01)
-				TIM2->CCR1 += 5;
-				if(0x02 == temp_data)
-				{
-					TIM2->CCR1 -= 5;
-				}
-			HAL_UART_Transmit(&huart1,(uint8_t *) &temp_data, 1, 0x10);
-      UART1_Rx_flg = 0;
+		usart_data_handle.data_correct_flag = 0; // clean flag
+		function_pointer[usart_data_handle.operation_object - 1](usart_data_handle.operation_command);
 	}
 }
-static void Loop_100Hz(void)	//10ms执行一次
+
+static void Loop_500Hz(void) //2ms执行一次
 {
-	
 }
 
-static void Loop_50Hz(void)	//20ms执行一次
-{	
-
-
-}
-
-
-static void Loop_20Hz(void)	//50ms执行一次
-{	
-	
-}
-
-static void Loop_2Hz(void)	//500ms执行一次
+static void Loop_200Hz(void) //5ms执行一次
 {
+}
+static void Loop_100Hz(void) //10ms执行一次
+{
+}
 
+static void Loop_50Hz(void) //20ms执行一次
+{
+}
+
+static void Loop_20Hz(void) //50ms执行一次
+{
+}
+
+static void Loop_2Hz(void) //500ms执行一次
+{
 }
 //系统任务配置，创建不同执行频率的“线程”
-static sched_task_t sched_tasks[] = 
-{
-	{Loop_1000Hz,1000,  0, 0},
-	{Loop_500Hz , 500,  0, 0},
-	{Loop_200Hz , 200,  0, 0},
-	{Loop_100Hz , 100,  0, 0},
-	{Loop_50Hz  ,  50,  0, 0},
-	{Loop_20Hz  ,  20,  0, 0},
-	{Loop_2Hz   ,   2,  0, 0},
+static sched_task_t sched_tasks[] =
+	{
+		{Loop_1000Hz, 1000, 0, 0},
+		{Loop_500Hz, 500, 0, 0},
+		{Loop_200Hz, 200, 0, 0},
+		{Loop_100Hz, 100, 0, 0},
+		{Loop_50Hz, 50, 0, 0},
+		{Loop_20Hz, 20, 0, 0},
+		{Loop_2Hz, 2, 0, 0},
 };
 //根据数组长度，判断线程数量
-#define TASK_NUM (sizeof(sched_tasks)/sizeof(sched_task_t))
+#define TASK_NUM (sizeof(sched_tasks) / sizeof(sched_task_t))
 
 void Scheduler_Setup(void)
 {
 	uint8_t index = 0;
 	//初始化任务表
-	for(index=0;index < TASK_NUM;index++)
+	for (index = 0; index < TASK_NUM; index++)
 	{
 		//计算每个任务的延时周期数 1000/每个任务的频率 1000hz的就是一个周期
-		sched_tasks[index].interval_ticks = TICK_PER_SECOND/sched_tasks[index].rate_hz;
+		sched_tasks[index].interval_ticks = TICK_PER_SECOND / sched_tasks[index].rate_hz;
 		//最短周期为1，也就是1ms
-		if(sched_tasks[index].interval_ticks < 1)
+		if (sched_tasks[index].interval_ticks < 1)
 		{
 			sched_tasks[index].interval_ticks = 1;
 		}
@@ -98,29 +76,43 @@ void Scheduler_Run(void)
 	uint8_t index = 0;
 	//循环判断所有线程，是否应该执行
 
-	
-	for(index=0;index < TASK_NUM;index++)
+	for (index = 0; index < TASK_NUM; index++)
 	{
 		//获取系统当前时间，单位MS
-		
+
 		uint32_t tnow = HAL_GetTick();
 		//进行判断，如果当前时间减去上一次执行的时间，大于等于该线程的执行周期，则执行线程
-		if(tnow - sched_tasks[index].last_run >= sched_tasks[index].interval_ticks)
+		if (tnow - sched_tasks[index].last_run >= sched_tasks[index].interval_ticks)
 		{
-			
+
 			//更新线程的执行时间，用于下一次判断
 			sched_tasks[index].last_run = tnow;
 			//执行线程函数，使用的是函数指针
 			sched_tasks[index].task_func();
-
-		}	 
+		}
 	}
-	
+}
 
+double op1(unsigned char op_commond)
+{
+	HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_6);
+	TIM2->CCR1 = (uint32_t) (1250 - (op_commond * 25)/9 );
+	return 1 ;
+}
+
+double op2(unsigned char op_commond)
+{
+	
+	HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_6);
+	TIM2->CCR2 = (uint32_t) (1250 - (op_commond * 25)/9 );
+	return 1 ;
+}
+double op3(unsigned char op_commond)
+{
+	HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_6);
+	TIM2->CCR3 = (uint32_t) (1250 - (op_commond * 25)/9 );
+	return 1 ;
 }
 
 
-
-/******************* (C) COPYRIGHT 2014 ANO TECH *****END OF FILE************/
-	
-
+	/******************* (C) COPYRIGHT 2014 ANO TECH *****END OF FILE************/

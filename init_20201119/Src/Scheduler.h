@@ -21,7 +21,17 @@ uint32_t last_run;
 
 void Scheduler_Setup(void);
 void Scheduler_Run(void);
-void data_exam(uint8_t temp_data);
 
+
+
+typedef struct
+{
+	unsigned char data_correct_flag;// 1 数据正确标志 
+	unsigned char data_origin; // 数据来源
+	unsigned char operation_object; // 操作对象
+	unsigned char operation_command; // 操作命令
+}_usart_data_st;
+//==数据声明
+extern _usart_data_st usart_data_handle;
 #endif
 

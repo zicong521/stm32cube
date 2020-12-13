@@ -221,8 +221,8 @@ void USART1_IRQHandler(void)
 {
   /* USER CODE BEGIN USART1_IRQn 0 */
 	
-	// 自己实现的不定长接收 不重写CUBE生成的串口中断回调函数
-	UsartReceive_IDLE(&huart1);  
+	// 自己实现的不定长接收 
+	// UsartReceive_IDLE(&huart1);  
   /* USER CODE END USART1_IRQn 0 */
   HAL_UART_IRQHandler(&huart1);
   /* USER CODE BEGIN USART1_IRQn 1 */

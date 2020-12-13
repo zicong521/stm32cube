@@ -23,7 +23,8 @@ uint8_t  RX_flag:1;        //IDLE receive flag
 uint16_t RX_Size;          //receive length
 uint8_t  RX_pData[RX_LEN]; //DMA receive buffer
 }USART_RECEIVETYPE;  
-   
+
+
 extern USART_RECEIVETYPE UsartType; 
 /* USER CODE END Private defines */
 
@@ -31,7 +32,7 @@ extern void Error_Handler(void);
 extern void UsartReceive_IDLE(UART_HandleTypeDef *huart);  
 
 /* USER CODE BEGIN Prototypes */
-
+void Usart_Data_Receive_Prepare(uint8_t data);
 /* USER CODE END Prototypes */
 
 #ifdef __cplusplus

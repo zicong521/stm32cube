@@ -68,9 +68,16 @@ static void MX_USART1_UART_Init(void);
 /* USER CODE BEGIN 0 */
 // 任务调度器的初始
 
-void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+
+  
+
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
-  HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_6);
+	 if(huart->Instance==USART1)
+  {
+    HAL_UART_Receive_IT(&huart1,(uint8_t *)UART1_Rx_Buf, 1);
+		Usart_Data_Receive_Prepare(UART1_Rx_Buf[0]);
+  }
 }
 
 /* USER CODE END 0 */
@@ -116,10 +123,13 @@ Scheduler_Setup();
   /* USER CODE BEGIN WHILE */
   HAL_TIM_Base_Start_IT(&htim6);            
   HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);
+	HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_2);
+	HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_3);
 	// 启动USART1接收中断 
 	
-	HAL_UART_Receive_DMA(&huart1, UsartType.RX_pData, RX_LEN);  
-	__HAL_UART_ENABLE_IT(&huart1, UART_IT_IDLE); 
+	//HAL_UART_Receive_DMA(&huart1, UsartType.RX_pData, RX_LEN);  
+	//__HAL_UART_ENABLE_IT(&huart1, UART_IT_IDLE);  不定长接收的
+	HAL_UART_Receive_IT(&huart1,(uint8_t *)UART1_Rx_Buf, 1);
   while (1)
   {
     Scheduler_Run();
@@ -221,6 +231,16 @@ static void MX_TIM2_Init(void)
   sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
   sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
   if (HAL_TIM_PWM_ConfigChannel(&htim2, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sConfigOC.Pulse = 749;
+  if (HAL_TIM_PWM_ConfigChannel(&htim2, &sConfigOC, TIM_CHANNEL_2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sConfigOC.Pulse = 748;
+  if (HAL_TIM_PWM_ConfigChannel(&htim2, &sConfigOC, TIM_CHANNEL_3) != HAL_OK)
   {
     Error_Handler();
   }
