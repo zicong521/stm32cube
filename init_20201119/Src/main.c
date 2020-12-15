@@ -130,6 +130,7 @@ Scheduler_Setup();
 	//HAL_UART_Receive_DMA(&huart1, UsartType.RX_pData, RX_LEN);  
 	//__HAL_UART_ENABLE_IT(&huart1, UART_IT_IDLE);  不定长接收的
 	HAL_UART_Receive_IT(&huart1,(uint8_t *)UART1_Rx_Buf, 1);
+
   while (1)
   {
     Scheduler_Run();
