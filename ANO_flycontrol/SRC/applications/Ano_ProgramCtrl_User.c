@@ -1,317 +1,481 @@
-
-#include "Ano_ProgramCtrl_User.h"
-
-#include "Ano_Math.h"
 #include "Ano_FlightCtrl.h"
+#include "Ano_Imu.h"
+#include "Drv_icm20602.h"
+#include "Ano_MagProcess.h"
+#include "Drv_spl06.h"
+#include "Ano_MotionCal.h"
+#include "Ano_AttCtrl.h"
+#include "Ano_LocCtrl.h"
+#include "Ano_AltCtrl.h"
+#include "Ano_MotorCtrl.h"
+#include "Drv_led.h"
+#include "Ano_RC.h"
+#include "Drv_vl53l0x.h"
+#include "Ano_OF.h"
 #include "Ano_FlyCtrl.h"
+/*用户添加*/
+#include "Ano_ProgramCtrl_User.h"
+/////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////
 
-#include <stdio.h>
-#include "Drv_time.h"
-#include "Ano_DT.h"
-#include "Drv_usart.h"
-#include "Drv_Led.h"
 
-#include "Drv_openmv.h"
-#define USER_TASK_NUM 15 //用户任务数
+/////////////////////////////////////////////////////////
 
-void UserCtrlReset(void);
-
-_pc_user_st pc_user;
-
-_user_cntrl_word user_cntrl_word; //用户控制字
-
-/*-----------------------------------------------------------------------------*/
-//用户任务
-
-void empty_task(u32 dT_us)
+/*PID参数初始化*/
+void All_PID_Init(void)
 {
 
-	Program_Ctrl_User_Set_HXYcmps(0, 0);
-	Program_Ctrl_User_Set_YAWdps(0);
-	if (user_cntrl_word.mode == 2)
+	/*姿态控制，角速度PID初始化*/
+	Att_1level_PID_Init();
+	
+	/*姿态控制，角度PID初始化*/
+	Att_2level_PID_Init();
+	
+	/*高度控制，高度速度PID初始化*/
+	Alt_1level_PID_Init();	
+	
+	/*高度控制，高度PID初始化*/
+	Alt_2level_PID_Init();
+	
+	
+	/*位置速度控制PID初始化*/
+	Loc_1level_PID_Init();
+	
+}
+
+/*控制参数改变任务*/
+void ctrl_parameter_change_task()
+{
+
+	
+	if(0)
 	{
-		user_cntrl_word.land_en = 1;
-	}
-}
-// 与openmv进行通信 并得到相应控制指令
-void user_task_openmv_com()
-{
-
-	if (opmv.data_correct_flag)
-	{
-		Program_Ctrl_User_Set_HXYcmps(opmv.move_y_flag * 15, opmv.move_x_flag * 15);
-
-		if (opmv.turn_left_flag_90)
-		{
-			user_cntrl_word.break_out = 1;
-		}
-		if (opmv.turn_right_flag_90)
-		{
-			user_cntrl_word.break_out = 1;
-		}
-		if (opmv.turn_left_flag)
-		{
-			Program_Ctrl_User_Set_YAWdps(-15);
-			opmv.turn_left_flag = 0;
-		}
-		if (opmv.turn_right_flag)
-		{
-			Program_Ctrl_User_Set_YAWdps(15);
-			opmv.turn_right_flag = 0;
-		}
-		if (opmv.empty_move_flag)
-		{
-			opmv.empty_move_flag = 0;
-			Program_Ctrl_User_Set_HXYcmps(0, 0);
-			Program_Ctrl_User_Set_YAWdps(0);
-		}
-		if (opmv.direct_down_flag)
-		{
-			user_cntrl_word.land_en = 1;
-		}
-		opmv.data_correct_flag = 0;
-	}
-}
-
-void user_task_point_fix(u32 dT_us)
-{
-	Program_Ctrl_User_Set_HXYcmps(0, 0);
-	Program_Ctrl_User_Set_YAWdps(0);
-	if (user_cntrl_word.mode == 1)
-	{
-		user_cntrl_word.break_out = 1;
-	}
-}
-
-void horiz_stabelize(u32 dT_us)
-{
-}
-
-void move_on(u32 dT_us)
-{
-
-	Program_Ctrl_User_Set_HXYcmps(5, 0);
-}
-int task_end_flag = 0;
-
-void move_back(u32 dT_us)
-{
-
-	Program_Ctrl_User_Set_HXYcmps(-5, 0);
-}
-void move_left(u32 dT_us)
-{
-	Program_Ctrl_User_Set_HXYcmps(0, 10);
-}
-void move_right(u32 dT_us)
-{
-	Program_Ctrl_User_Set_HXYcmps(0, -10);
-}
-void turn_left(u32 dT_us)
-{
-
-	Program_Ctrl_User_Set_YAWdps(-15);
-}
-void turn_right(u32 dT_us)
-{
-
-	Program_Ctrl_User_Set_YAWdps(15);
-}
-u8 flag_open_mv = 1;
-void user_task_1(u32 dT_us) //这是主要查询函数
-{
-	if (flag_open_mv)
-	{
-		opmv_GetOneByte_blobMV_en(); //启动OPENMV
-		flag_open_mv = 0;
-		Delay_ms(10);
-	}
-
-	user_task_openmv_com(); //与openmv通信
-}
-void user_task_turn_90(u32 dT_us)
-{
-	if (opmv.turn_left_flag_90)
-	{
-		opmv.turn_left_flag_90 = 0;
-		Program_Ctrl_User_Set_YAWdps(-15);
-		opmv_close_turn_flag();
-	}
-	if (opmv.turn_right_flag_90)
-	{
-		opmv.turn_right_flag_90 = 0;
-		Program_Ctrl_User_Set_YAWdps(15);
-		opmv_close_turn_flag();
-	}
-}
-
-void user_task_5(u32 dT_us)
-{
-	if (user_cntrl_word.mode == 3)
-	{
-		Program_Ctrl_User_Set_HXYcmps(-10, 0);
+		Set_Att_2level_Ki(0);
+		
 	}
 	else
 	{
-		user_cntrl_word.break_out = 1;
+		if(flag.auto_take_off_land ==AUTO_TAKE_OFF)
+		{
+
+			Set_Att_1level_Ki(2);
+		}
+		else
+		{
+
+			Set_Att_1level_Ki(1);
+		}
+		
+		Set_Att_2level_Ki(1);
 	}
 }
 
-/*------------------------------------------------------------------------------*/
 
-static user_task_t user_task[USER_TASK_NUM] = //用户任务列表（一键起飞后自动进行）
-	{
-		{empty_task, 8000, 0, 0}, //起飞八秒悬停
-		{move_on, 1000, 0, 0},	  //抵消后退偏置
-		{user_task_1, 200000, 0, 0},
-		{user_task_turn_90, 6000, 0, 0},
-		{move_back, 4000, 0, 0},
-		{user_task_1, 200000, 0, 0},
-		{user_task_turn_90, 6000, 0, 0},
-		{move_back, 4000, 0, 0},
-		{user_task_1, 200000, 0, 0},
-		{user_task_turn_90, 6000, 0, 0},
-		{move_back, 4000, 0, 0},
-		{user_task_1, 200000, 0, 0},
-		{user_task_turn_90, 6000, 0, 0},
-		{move_back, 4000, 0, 0},
-		{empty_task, 8000, 0, 0}, //最后停止了
-};
-
-//顺序执行用户任务
-static u8 task_index = 0;	 //用于记录正在执行的任务
-static u32 running_time = 0; //任务已运行时间
-
-void User_Ctrl(u32 dT_ms)
+/*一键翻滚（暂无）*/
+void one_key_roll()
 {
 
-	if (user_cntrl_word.takeoff_en == 1 && switchs.of_flow_on)
-	{
-		//		printf("take off\r\n");
-		FlyCtrlReset();
-		one_key_take_off();
-		user_cntrl_word.takeoff_en = 0;
-		user_cntrl_word.user_task_running = 1; //用来防止纯手动模式下进入usertask
-		user_cntrl_word.break_out = 0;		   //为任务的跳出做准备
-		task_index = 0;
-		running_time = 0; //任务已运行时间
+			if(flag.flying && flag.auto_take_off_land == AUTO_TAKE_OFF_FINISH)
+			{	
+				if(rolling_flag.roll_mode==0)
+				{
+					rolling_flag.roll_mode = 1;
+					
+				}
+			}
 
-		for (int i = 0; i < USER_TASK_NUM; i++)
+}
+
+static u16 one_key_taof_start;
+/*一键起飞任务（主要功能为延迟）*/
+void one_key_take_off_task(u16 dt_ms)
+{
+	if(one_key_taof_start != 0)
+	{
+		one_key_taof_start += dt_ms;
+		
+		
+		if(one_key_taof_start > 1400 && flag.motor_preparation == 1)
 		{
-			user_task[i].end_flag = 0; //清空所有任务结束标志位
+			one_key_taof_start = 0;
+				if(flag.auto_take_off_land == AUTO_TAKE_OFF_NULL)
+				{
+					flag.auto_take_off_land = AUTO_TAKE_OFF;
+					//解锁、起飞
+
+					flag.taking_off = 1;
+				}
+			
 		}
 	}
-	else if (user_cntrl_word.land_en)
+	//reset
+	if(flag.unlock_sta == 0)
 	{
-		//			printf("land\r\n");
-		UserCtrlReset();
-		one_key_land();
-		user_cntrl_word.land_en = 0;
+		one_key_taof_start = 0;
 	}
-	//else if(flag.flying==1&&user_cntrl_word.user_task_running)
-	else if (user_cntrl_word.user_task_running)
-	{
-		if (task_index < USER_TASK_NUM)
+
+}
+/*一键起飞*/
+void one_key_take_off()
+{
+	if(flag.unlock_err == 0)
+	{	
+		if(flag.auto_take_off_land == AUTO_TAKE_OFF_NULL && one_key_taof_start == 0)
 		{
-			if (user_task[task_index].start_flag == 1) //执行第task_index个任务
-			{
-				user_task[task_index].task_func(dT_ms);
-				running_time += dT_ms; //记录累计时间
-			}
+			one_key_taof_start = 1;
+			flag.unlock_cmd = 1;
+		}
+	}
+}
+/*一键降落*/
+void one_key_land()
+{
+	flag.auto_take_off_land = AUTO_LAND;
+}
 
-			if (user_task[task_index].end_flag == 1) //准备开始下一个任务
-			{
-				task_index++;
-				running_time = 0;
-				FlyCtrlReset();
-				UserCtrlReset();
-			}
-			else if (user_cntrl_word.break_out == 1) //任务的强制结束
-			{
-				task_index++;
-				running_time = 0;
-				user_cntrl_word.break_out = 0;
-				user_cntrl_word.stop = 0;
-				FlyCtrlReset();
-				UserCtrlReset();
-			}
+//////////////////////////////////////////////////////////////////
 
-			if (running_time == 0) //启动第task_index个任务
+
+
+//////////////////////////////////////////////////////////////////
+_flight_state_st fs;
+
+s16 flying_cnt,landing_cnt;
+
+extern s32 ref_height_get;
+
+float stop_baro_hpf;
+
+/*降落检测*/
+
+static s16 ld_delay_cnt ;
+void land_discriminat(s16 dT_ms)
+{
+//	static s16 acc_delta,acc_old;
+	
+//	acc_delta = imu_data.w_acc[Z]- acc_old;
+//	acc_old = imu_data.w_acc[Z];
+	
+	/*油门归一值小于0.1  或者启动自动降落*/
+	if((fs.speed_set_h_norm[Z] < 0.1f) || flag.auto_take_off_land == AUTO_LAND)
+	{
+		if(ld_delay_cnt>0)
+		{
+			ld_delay_cnt -= dT_ms;
+		}
+	}
+	else
+	{
+		ld_delay_cnt = 200;
+	}
+	
+	/*意义是：如果向上推了油门，就需要等垂直方向加速度小于200cm/s2 保持200ms才开始检测*/	
+	if(ld_delay_cnt <= 0 && (flag.thr_low || flag.auto_take_off_land == AUTO_LAND) )
+	{
+		/*油门最终输出量小于250并且没有在手动解锁上锁过程中，持续1秒，认为着陆，然后上锁*/
+		if(mc.ct_val_thr<250 && flag.unlock_sta == 1 && flag.locking != 2)//ABS(wz_spe_f1.out <20 ) //还应当 与上速度条件，速度小于正20厘米每秒。
+		{
+			if(landing_cnt<1500)
 			{
-				user_task[task_index].start_flag = 1;
-				//							 printf("user task<%d> start!\r\n",task_index);
+				landing_cnt += dT_ms;
 			}
-			else if (running_time >= user_task[task_index].run_time) //判断当前任务是否完成
+			else
 			{
-				user_task[task_index].start_flag = 0;
-				user_task[task_index].end_flag = 1;
+
+				flying_cnt = 0;
+				flag.taking_off = 0;
+				///////
+					landing_cnt =0;	
+					flag.unlock_cmd =0;				
+
+				flag.flying = 0;
+
 			}
 		}
 		else
 		{
-			user_cntrl_word.land_en = 1;
-			user_cntrl_word.user_task_running = 0;
-			UserCtrlReset();
-			FlyCtrlReset();
-			task_index = 0;
-			running_time = 0;
-			//			printf("UserCtrlReset\r\n");
+			landing_cnt = 0;
 		}
+			
+		
+	}
+	else
+	{
+		landing_cnt  = 0;
+	}
+
+}
+
+
+/*飞行状态任务*/
+
+void Flight_State_Task(u8 dT_ms,s16 *CH_N)
+{
+	s16 thr_deadzone;
+	static float max_speed_lim,vel_z_tmp[2];
+	/*设置油门摇杆量*/
+	thr_deadzone = (flag.wifi_ch_en != 0) ? 0 : 50;
+	fs.speed_set_h_norm[Z] = my_deadzone(CH_N[CH_THR],0,thr_deadzone) *0.0023f;
+	fs.speed_set_h_norm_lpf[Z] += 0.5f *(fs.speed_set_h_norm[Z] - fs.speed_set_h_norm_lpf[Z]);
+	
+	/*推油门起飞*/
+	if(flag.unlock_sta)
+	{	
+		if(fs.speed_set_h_norm[Z]>0.01f && flag.motor_preparation == 1) // 0-1
+		{
+			flag.taking_off = 1;
+		}	
+	}		
+	//
+	fc_stv.vel_limit_z_p = MAX_Z_SPEED_UP;
+	fc_stv.vel_limit_z_n = -MAX_Z_SPEED_DW;	
+	//
+	if(flag.taking_off)
+	{
+			
+		if(flying_cnt<1000)//800ms
+		{
+			flying_cnt += dT_ms;
+		}
+		else
+		{
+			/*起飞后1秒，认为已经在飞行*/
+			flag.flying = 1;  
+		}
+		
+		if(fs.speed_set_h_norm[Z]>0)
+		{
+			/*设置上升速度*/
+			vel_z_tmp[0] = (fs.speed_set_h_norm_lpf[Z] *MAX_Z_SPEED_UP);
+		}
+		else
+		{
+			/*设置下降速度*/
+			vel_z_tmp[0] = (fs.speed_set_h_norm_lpf[Z] *MAX_Z_SPEED_DW);
+		}
+
+		//飞控系统Z速度目标量综合设定
+		vel_z_tmp[1] = vel_z_tmp[0] + program_ctrl.vel_cmps_h[Z] + pc_user.vel_cmps_set_z;
+		//
+		vel_z_tmp[1] = LIMIT(vel_z_tmp[1],fc_stv.vel_limit_z_n,fc_stv.vel_limit_z_p);
+		//
+		fs.speed_set_h[Z] += LIMIT((vel_z_tmp[1] - fs.speed_set_h[Z]),-0.8f,0.8f);//限制增量幅度
+	}
+	else
+	{
+		fs.speed_set_h[Z] = 0 ;
+	}
+	float speed_set_tmp[2];
+	/*速度设定量，正负参考ANO坐标参考方向*/
+	fs.speed_set_h_norm[X] = (my_deadzone(+CH_N[CH_PIT],0,50) *0.0022f);
+	fs.speed_set_h_norm[Y] = (my_deadzone(-CH_N[CH_ROL],0,50) *0.0022f);
+		
+	LPF_1_(3.0f,dT_ms*1e-3f,fs.speed_set_h_norm[X],fs.speed_set_h_norm_lpf[X]);
+	LPF_1_(3.0f,dT_ms*1e-3f,fs.speed_set_h_norm[Y],fs.speed_set_h_norm_lpf[Y]);
+	
+	max_speed_lim = MAX_SPEED;
+	
+	if(switchs.of_flow_on)
+	{
+		max_speed_lim = 1.5f *wcz_hei_fus.out;
+		max_speed_lim = LIMIT(max_speed_lim,50,150);
+	}	
+	
+	fc_stv.vel_limit_xy = max_speed_lim;
+	
+	//飞控系统XY速度目标量综合设定
+	speed_set_tmp[X] = fc_stv.vel_limit_xy *fs.speed_set_h_norm_lpf[X] + program_ctrl.vel_cmps_h[X] + pc_user.vel_cmps_set_h[X];
+	speed_set_tmp[Y] = fc_stv.vel_limit_xy *fs.speed_set_h_norm_lpf[Y] + program_ctrl.vel_cmps_h[Y] + pc_user.vel_cmps_set_h[Y];
+	
+	length_limit(&speed_set_tmp[X],&speed_set_tmp[Y],fc_stv.vel_limit_xy,fs.speed_set_h_cms);
+
+	fs.speed_set_h[X] = fs.speed_set_h_cms[X];
+	fs.speed_set_h[Y] = fs.speed_set_h_cms[Y];	
+	
+	/*调用检测着陆的函数*/
+	land_discriminat(dT_ms);
+	
+	/*倾斜过大上锁*/
+	if(rolling_flag.rolling_step == ROLL_END)
+	{
+		if(imu_data.z_vec[Z]<0.25f)//75度  ////////////////////////////////////////*************************** 倾斜过大上锁，慎用。
+		{
+
+			flag.unlock_cmd = 0;
+		}
+
+	}	
+		//////////////////////////////////////////////////////////
+	/*校准中，复位重力方向*/
+	if(sensor.gyr_CALIBRATE != 0 || sensor.acc_CALIBRATE != 0 ||sensor.acc_z_auto_CALIBRATE)
+	{
+		imu_state.G_reset = 1;
+	}
+	
+	/*复位重力方向时，认为传感器失效*/
+	if(imu_state.G_reset == 1)
+	{
+		flag.sensor_imu_ok = 0;
+		LED_STA.rst_imu = 1;
+		WCZ_Data_Reset(); //复位高度数据融合
+	}
+	else if(imu_state.G_reset == 0)
+	{	
+		if(flag.sensor_imu_ok == 0)
+		{
+			flag.sensor_imu_ok = 1;
+			LED_STA.rst_imu = 0;
+			ANO_DT_SendString("IMU OK!");
+		}
+	}
+	
+	/*飞行状态复位*/
+	if(flag.unlock_sta == 0)
+	{
+		flag.flying = 0;
+		landing_cnt = 0;
+		flag.taking_off = 0;
+		flying_cnt = 0;
+		
+		
+		flag.rc_loss_back_home = 0;
+		
+		//复位融合
+		if(flag.taking_off == 0)
+		{
+//			wxyz_fusion_reset();
+		}
+	}
+	
+
+}
+
+static u8 of_light_ok;
+static u16 of_light_delay;
+void Swtich_State_Task(u8 dT_ms)
+{
+	switchs.baro_on = 1;
+	
+
+	if(sens_hd_check.of_ok)//光流模块
+	{
+		if(OF_QUALITY>20 )//|| flag.flying == 0) //光流质量大于20 /*或者在飞行之前*/，认为光流可用，判定可用延迟时间为1秒
+		{
+			if(of_light_delay<1000)
+			{
+				of_light_delay += dT_ms;
+			}
+			else
+			{
+				of_light_ok = 1;
+			}
+		}
+		else
+		{
+			of_light_delay =0;
+			of_light_ok = 0;
+		}
+		
+		if(OF_ALT<500 && flag.flight_mode == LOC_HOLD)//光流高度500cm内有效
+		{		
+			if(of_light_ok)
+			{
+				switchs.of_flow_on = 1;
+			}
+			else
+			{
+				switchs.of_flow_on = 0;
+			}
+			switchs.of_tof_on = 1;
+		}
+		else
+		{
+			switchs.of_tof_on = 0;
+			switchs.of_flow_on = 0;
+		}			
+	}
+	else
+	{
+		switchs.of_flow_on = switchs.of_tof_on = 0;
+	}
+	
+	if(sens_hd_check.tof_ok)//激光模块
+	{
+		if(tof_height_mm<1900)
+		{
+			switchs.tof_on = 1;
+		}
+		else
+		{
+			switchs.tof_on = 0;
+		}
+	}
+	else
+	{
+		switchs.tof_on = 0;
+	}
+
+}
+
+
+static void Speed_Mode_Switch()
+{
+//	if( ubx_user_data.s_acc_cms > 60)// || ubx_user_data.svs_used < 6)
+//	{
+//		flag.speed_mode = 0;
+//	}
+//	else
+//	{
+//		flag.speed_mode = 1;
+//	}
+
+}
+
+u8 speed_mode_old = 255;
+u8 flight_mode_old = 255;
+void Flight_Mode_Set(u8 dT_ms)
+{
+	Speed_Mode_Switch();
+
+	
+	if(speed_mode_old != flag.speed_mode) //状态改变
+	{
+		speed_mode_old = flag.speed_mode;
+		//xy_speed_pid_init(flag.speed_mode);////////////
+	}
+
+///////////////////////////////////////////////////////
+
+	if(CH_N[AUX1] <-100 && CH_N[AUX1]>-200)//接收机失控值，需要手工设置遥控器
+	{
+		//遥控设置的接收机输出的失控保护的信号。
+		flag.chn_failsafe = 1;
+	}
+	else
+	{
+		flag.chn_failsafe = 0;
+		////
+		if(CH_N[AUX1]<-300)
+		{
+			flag.flight_mode = ATT_STAB;
+		}
+		else if(CH_N[AUX1]<200)
+		{
+			flag.flight_mode = LOC_HOLD;
+		}
+		else
+		{
+			flag.flight_mode = RETURN_HOME;
+		}
+	}
+	
+	
+	if(flight_mode_old != flag.flight_mode) //摇杆对应模式状态改变
+	{
+		flight_mode_old = flag.flight_mode;
+		
+		flag.rc_loss_back_home = 0;
+
 	}
 }
 
-//=====1、航向水平坐标系程控速度功能接口函数=====
-/**********************************************************************************************************
-*函 数 名: Program_Ctrl_User_Set_HXYcmps
-*功能说明: 程控功能，航向水平坐标系下速度设定（实时控制）
-*形    参: X速度（厘米每秒，正为前进，负为后退，Y速度（厘米每秒，正为左移，负为右移）
-*返 回 值: 无
-**********************************************************************************************************/
-void Program_Ctrl_User_Set_HXYcmps(float hx_vel_cmps, float hy_vel_cmps)
-{
-	//
-	pc_user.vel_cmps_set_h[0] = hx_vel_cmps;
-	pc_user.vel_cmps_set_h[1] = hy_vel_cmps;
-	//限制XY速度模长
-	length_limit(&pc_user.vel_cmps_set_h[0], &pc_user.vel_cmps_set_h[1], MAX_PC_XYVEL_CMPS, pc_user.vel_cmps_set_h);
-}
-
-//=====2、无头模式参考坐标系程控功速度能接口函数（暂无，稍后开发，或者参考上位机程控功能）=====
-//
-//
-//
-
-//=====3、通用程控速度功能接口函数=====
-/**********************************************************************************************************
-*函 数 名: Program_Ctrl_User_Set_WHZcmps
-*功能说明: 程控功能，上升下降速度设定（实时控制）
-*形    参: 速度（厘米每秒，正为上升，负为下降）
-*返 回 值: 无
-**********************************************************************************************************/
-void Program_Ctrl_User_Set_Zcmps(float z_vel_cmps)
-{
-	//
-	pc_user.vel_cmps_set_z = z_vel_cmps;
-	//限幅
-	pc_user.vel_cmps_set_z = LIMIT(pc_user.vel_cmps_set_z, -MAX_PC_ZVEL_CMPS, MAX_PC_ZVEL_CMPS);
-}
-/**********************************************************************************************************
-*函 数 名: Program_Ctrl_User_Set_YAWdps
-*功能说明: 程控功能，航向速度设定（实时控制）
-*形    参: 速度（度每秒，正为右转，负为左转）
-*返 回 值: 无
-**********************************************************************************************************/
-void Program_Ctrl_User_Set_YAWdps(float yaw_pal_dps)
-{
-	ANO_DT_SendString("turn left!");
-	pc_user.pal_dps_set = yaw_pal_dps;
-	//限幅
-	pc_user.pal_dps_set = LIMIT(pc_user.pal_dps_set, -MAX_PC_PAL_DPS, MAX_PC_PAL_DPS);
-}
-
-void UserCtrlReset()
-{
-	Program_Ctrl_User_Set_HXYcmps(0, 0);
-	Program_Ctrl_User_Set_YAWdps(0);
-	Program_Ctrl_User_Set_Zcmps(0);
-}
